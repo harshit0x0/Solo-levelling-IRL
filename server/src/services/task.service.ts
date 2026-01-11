@@ -4,6 +4,8 @@ import { TaskLog, TaskStatus } from '../models/TaskLog';
 import { Op } from 'sequelize';
 import { addXp } from './xp.service';
 import { applyStatChange } from './stat.service';
+import { judgeTask } from '../ai/judge';
+import { JudgeResponse } from '../ai/validation';
 
 const { Task: TaskModel, TaskLog: TaskLogModel } = models;
 
@@ -210,6 +212,80 @@ export async function submitTask(
 }
 
 /**
+ * Converts AI Judge response to TaskResolution format
+ */
+function convertJudgeResponseToResolution(judgeResponse: JudgeResponse): TaskResolution {
+  return {
+    success: judgeResponse.verdict === 'success',
+    xpAwarded: judgeResponse.xp,
+    statChanges: judgeResponse.statChanges as Partial<Record<StatType, number>>,
+    feedback: judgeResponse.comment,
+  };
+}
+
+/**
+ * Judges a task using AI and resolves it automatically
+ * This is the main entry point for task evaluation after submission.
+ * Flow: Task Service → AI Judge → Validation → Stat/XP Services → DB
+ *
+ * @param taskLogId - TaskLog ID to judge and resolve
+ * @returns Updated TaskLog instance
+ */
+export async function judgeAndResolveTask(taskLogId: number): Promise<TaskLog> {
+  // Fetch task log with task and player info
+  const taskLog = await TaskLogModel.findByPk(taskLogId, {
+    include: [
+      {
+        model: TaskModel,
+        as: 'task',
+        required: true,
+      },
+    ],
+  });
+
+  if (!taskLog) {
+    throw new Error(`TaskLog not found: ${taskLogId}`);
+  }
+
+  // Type assertion needed because Sequelize include doesn't update TypeScript types
+  const task = (taskLog as any).task as Task;
+  if (!task) {
+    throw new Error(`Task not found for TaskLog ${taskLogId}`);
+  }
+
+  if (taskLog.status !== 'pending') {
+    throw new Error(`TaskLog ${taskLogId} is not pending (current status: ${taskLog.status})`);
+  }
+
+  if (!taskLog.evidence) {
+    throw new Error(`TaskLog ${taskLogId} has no evidence to judge`);
+  }
+
+  // Fetch player stats
+  const playerStats = await models.Stats.findOne({
+    where: { playerId: taskLog.playerId },
+  });
+
+  if (!playerStats) {
+    throw new Error(`Stats not found for player ${taskLog.playerId}`);
+  }
+
+  // Call AI Judge (validation happens inside judgeTask)
+  // Flow: Task Service → AI Judge → Validation → Stat/XP Services → DB
+  const judgeResponse: JudgeResponse = await judgeTask({
+    task,
+    playerStats,
+    evidence: taskLog.evidence,
+  });
+
+  // Convert JudgeResponse to TaskResolution
+  const resolution = convertJudgeResponseToResolution(judgeResponse);
+
+  // Resolve task (applies XP and stat changes via services, not directly)
+  return await resolveTask(taskLog, resolution);
+}
+
+/**
  * Resolves a task based on AI judgment and applies rewards/penalties
  *
  * @param taskLog - TaskLog instance
@@ -230,10 +306,10 @@ export async function resolveTask(
   });
 
   if (success) {
-    // Apply rewards
+    // Apply rewards via XP service (not directly mutating DB)
     await addXp(taskLog.playerId, xpAwarded);
 
-    // Apply stat changes if any
+    // Apply stat changes via stat service (not directly mutating DB)
     if (statChanges && Object.keys(statChanges).length > 0) {
       await applyStatChange(taskLog.playerId, statChanges);
     }
