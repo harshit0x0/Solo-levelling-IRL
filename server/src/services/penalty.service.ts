@@ -151,6 +151,7 @@ export async function applyMissPenalty(playerId: number): Promise<{
     };
   }
 
+  const penalty = await applyPenalty(playerId, psi);
 
   let details = '';
   switch (penalty) {
