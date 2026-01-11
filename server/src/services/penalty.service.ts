@@ -141,7 +141,16 @@ export async function applyMissPenalty(playerId: number): Promise<{
   details: string;
 }> {
   const psi = await calculatePSI(playerId);
-  const penalty = await applyPenalty(playerId, psi);
+
+  // If there are no recent missed tasks, don't apply or record any penalty
+  if (psi === 0) {
+    return {
+      psi,
+      penalty: 'none',
+      details: 'No penalty applied.',
+    };
+  }
+
 
   let details = '';
   switch (penalty) {
