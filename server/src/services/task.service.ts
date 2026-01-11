@@ -234,7 +234,7 @@ export async function resolveTask(
     await addXp(taskLog.playerId, xpAwarded);
 
     // Apply stat changes if any
-    if (Object.keys(statChanges).length > 0) {
+    if (statChanges && Object.keys(statChanges).length > 0) {
       await applyStatChange(taskLog.playerId, statChanges);
     }
   }
