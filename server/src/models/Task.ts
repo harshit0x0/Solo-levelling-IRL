@@ -20,15 +20,15 @@ export interface TaskAttributes {
 export interface TaskCreationAttributes extends Optional<TaskAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
 
 export class Task extends Model<TaskAttributes, TaskCreationAttributes> implements TaskAttributes {
-  public id!: number;
-  public type!: TaskType;
-  public difficulty!: Difficulty;
-  public description!: string;
-  public targetStat!: StatType;
-  public xpReward!: number;
-  public deadline!: Date;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: number;
+  declare type: TaskType;
+  declare difficulty: Difficulty;
+  declare description: string;
+  declare targetStat: StatType;
+  declare xpReward: number;
+  declare deadline: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Task.init(

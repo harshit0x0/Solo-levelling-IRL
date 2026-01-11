@@ -17,14 +17,14 @@ export interface TaskLogAttributes {
 export interface TaskLogCreationAttributes extends Optional<TaskLogAttributes, 'id' | 'evidence' | 'aiVerdict' | 'createdAt' | 'updatedAt'> {}
 
 export class TaskLog extends Model<TaskLogAttributes, TaskLogCreationAttributes> implements TaskLogAttributes {
-  public id!: number;
-  public taskId!: number;
-  public playerId!: number;
-  public status!: TaskStatus;
-  public evidence!: string | null;
-  public aiVerdict!: string | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: number;
+  declare taskId: number;
+  declare playerId: number;
+  declare status: TaskStatus;
+  declare evidence: string | null;
+  declare aiVerdict: string | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 TaskLog.init(
