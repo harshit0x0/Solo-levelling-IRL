@@ -3,8 +3,13 @@ import {
   generateDailyTask,
   submitTask,
   resolveTask,
+  judgeAndResolveTask,
   checkAndMarkMissedTasks
 } from '../src/services/task.service';
+import { judgeTask } from '../src/ai/judge';
+
+// Mock AI Judge module
+jest.mock('../src/ai/judge');
 
 describe('Task Service', () => {
   let playerId: number;
@@ -129,6 +134,109 @@ describe('Task Service', () => {
       // Check no XP was added
       const player = await models.Player.findByPk(playerId);
       expect(player?.totalXp).toBe(0);
+    });
+  });
+
+  describe('judgeAndResolveTask', () => {
+    it('should judge task with AI and resolve successfully', async () => {
+      const task = await generateDailyTask(playerId);
+      const taskLog = await submitTask(task.id, playerId, 'I completed a 30-minute workout at the gym. Did 3 sets of bench press and 20 minutes on the treadmill.');
+
+      // Mock AI Judge to return success
+      (judgeTask as jest.Mock).mockResolvedValue({
+        verdict: 'success',
+        xp: 30,
+        statChanges: {
+          physical: 2,
+        },
+        comment: 'Task completed satisfactorily.',
+      });
+
+      const resolvedTaskLog = await judgeAndResolveTask(taskLog.id);
+
+      expect(resolvedTaskLog.status).toBe('completed');
+      expect(resolvedTaskLog.aiVerdict).toBe('Task completed satisfactorily.');
+
+      // Verify AI Judge was called with correct parameters
+      expect(judgeTask).toHaveBeenCalledWith({
+        task: expect.objectContaining({
+          id: task.id,
+          type: task.type,
+          difficulty: task.difficulty,
+          description: task.description,
+          targetStat: task.targetStat,
+        }),
+        playerStats: expect.objectContaining({
+          playerId,
+          physical: 30,
+        }),
+        evidence: taskLog.evidence,
+      });
+
+      // Check XP was added
+      const player = await models.Player.findByPk(playerId);
+      expect(player?.totalXp).toBe(30);
+
+      // Check stats were updated
+      const stats = await models.Stats.findOne({ where: { playerId } });
+      expect(stats?.physical).toBe(32); // 30 + 2
+    });
+
+    it('should judge task with AI and resolve as failed', async () => {
+      const task = await generateDailyTask(playerId);
+      const taskLog = await submitTask(task.id, playerId, 'I tried to work out but got tired.');
+
+      // Mock AI Judge to return fail
+      (judgeTask as jest.Mock).mockResolvedValue({
+        verdict: 'fail',
+        xp: 0,
+        statChanges: {},
+        comment: 'Evidence insufficient.',
+      });
+
+      const resolvedTaskLog = await judgeAndResolveTask(taskLog.id);
+
+      expect(resolvedTaskLog.status).toBe('failed');
+      expect(resolvedTaskLog.aiVerdict).toBe('Evidence insufficient.');
+
+      // Check no XP was added
+      const player = await models.Player.findByPk(playerId);
+      expect(player?.totalXp).toBe(0);
+
+      // Check stats were not updated
+      const stats = await models.Stats.findOne({ where: { playerId } });
+      expect(stats?.physical).toBe(30); // Unchanged
+    });
+
+    it('should throw error if task log not found', async () => {
+      await expect(judgeAndResolveTask(99999)).rejects.toThrow(/TaskLog not found/);
+    });
+
+    it('should throw error if task log is not pending', async () => {
+      const task = await generateDailyTask(playerId);
+      const taskLog = await submitTask(task.id, playerId, 'Evidence');
+
+      // Manually resolve it first
+      await resolveTask(taskLog, {
+        success: true,
+        xpAwarded: 25,
+        statChanges: {},
+        feedback: 'Test',
+      });
+
+      await expect(judgeAndResolveTask(taskLog.id)).rejects.toThrow(/is not pending/);
+    });
+
+    it('should throw error if task log has no evidence', async () => {
+      const task = await generateDailyTask(playerId);
+      const taskLog = await models.TaskLog.create({
+        taskId: task.id,
+        playerId,
+        status: 'pending',
+        evidence: null as any,
+      });
+
+      await expect(judgeAndResolveTask(taskLog.id)).rejects.toThrow(/has no evidence/);
     });
   });
 
