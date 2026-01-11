@@ -70,7 +70,7 @@ describe('Task Service', () => {
     });
 
     it('should throw error for non-existent task', async () => {
-      await expect(submitTask(99999, playerId, 'evidence')).rejects.toThrow('Task not found');
+      await expect(submitTask(99999, playerId, 'evidence')).rejects.toThrow(/Task not found/);
     });
 
     it('should throw error for past deadline', async () => {
