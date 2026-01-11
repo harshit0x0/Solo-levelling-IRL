@@ -52,7 +52,7 @@ describe('Task Service', () => {
     });
 
     it('should throw error if stats not found', async () => {
-      await expect(generateDailyTask(99999)).rejects.toThrow('Stats not found');
+      await expect(generateDailyTask(99999)).rejects.toThrow(/Stats not found/);
     });
   });
 
