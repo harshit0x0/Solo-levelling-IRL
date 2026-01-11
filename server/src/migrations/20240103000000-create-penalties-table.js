@@ -51,5 +51,8 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.dropTable('penalties');
-  }
+
+    if (queryInterface.sequelize && queryInterface.sequelize.getDialect() === 'postgres') {
+      await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_penalties_reason";');
+    }
 };
