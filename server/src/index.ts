@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import sequelize from './config/database';
 import models from './models';
+import { startDailyDecayJob } from './jobs/dailyDecay.job';
 
 dotenv.config();
 
@@ -38,6 +39,9 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
+
+    // Start daily cron job
+    startDailyDecayJob();
   } catch (error) {
     console.error('❌ Unable to connect to database:', error);
     process.exit(1);
