@@ -17,16 +17,16 @@ export interface StatsAttributes {
 export interface StatsCreationAttributes extends Optional<StatsAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
 
 export class Stats extends Model<StatsAttributes, StatsCreationAttributes> implements StatsAttributes {
-  public id!: number;
-  public playerId!: number;
-  public physical!: number;
-  public intelligence!: number;
-  public discipline!: number;
-  public charisma!: number;
-  public confidence!: number;
-  public creativity!: number;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: number;
+  declare playerId: number;
+  declare physical: number;
+  declare intelligence: number;
+  declare discipline: number;
+  declare charisma: number;
+  declare confidence: number;
+  declare creativity: number;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Stats.init(

@@ -1,5 +1,6 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/database';
+import type { Stats } from './Stats';
 
 export type Rank = 'E' | 'D' | 'C' | 'B' | 'A' | 'S' | 'SS';
 
@@ -15,12 +16,15 @@ export interface PlayerAttributes {
 export interface PlayerCreationAttributes extends Optional<PlayerAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
 
 export class Player extends Model<PlayerAttributes, PlayerCreationAttributes> implements PlayerAttributes {
-  public id!: number;
-  public rank!: Rank;
-  public level!: number;
-  public totalXp!: number;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: number;
+  declare rank: Rank;
+  declare level: number;
+  declare totalXp: number;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+
+  // Association properties
+  declare stats?: Stats;
 }
 
 Player.init(

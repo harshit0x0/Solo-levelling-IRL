@@ -58,6 +58,8 @@ This will start:
 
 - `npm run dev` - Start development server with hot reload
 - `npm run build` - Build for production
+- `npm run test` - Run tests
+- `npm run test:watch` - Run tests in watch mode
 - `npm run db:migrate` - Run database migrations
 - `npm run db:migrate:undo` - Rollback last migration
 
@@ -80,6 +82,7 @@ This will start:
 ✅ Core models created (Player, Stats, Task, TaskLog)
 ✅ Model associations configured
 ✅ Initial migration created
+✅ Minimal tests (database connection, associations)
 
 ## Next Steps
 
