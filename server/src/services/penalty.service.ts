@@ -62,7 +62,7 @@ export async function calculatePSI(playerId: number): Promise<number> {
   const streakFactor = Math.min(recentMissedTasks.length * 0.1 + 1, 2.0);
   psi *= streakFactor;
 
-  return Math.floor(psi); // Round to 2 decimal places
+  return Math.floor(psi); // Round down to nearest integer
 }
 
 /**
