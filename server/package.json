@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "jest --runInBand",
+    "test:integration": "jest --testPathPattern=integration",
     "test:watch": "jest --watch",
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:undo": "sequelize-cli db:migrate:undo",
@@ -20,7 +21,8 @@
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
     "dotenv": "^16.3.1",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "openai": "^4.20.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
