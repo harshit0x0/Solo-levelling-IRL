@@ -138,8 +138,12 @@ describe('XP Service', () => {
       expect(player.rank).toBe('D');
     });
 
-    it('should throw error for negative XP', async () => {
-      await expect(addXp(playerId, -10)).rejects.toThrow('XP amount must be positive');
+    it('should handle negative XP (for penalties)', async () => {
+      await addXp(playerId, 100); // Give some XP first
+      const player = await addXp(playerId, -10); // Then lose some
+
+      expect(player.totalXp).toBe(90);
+      expect(player.rank).toBe('E'); // Should stay E even with negative XP
     });
 
     it('should handle 0 XP addition', async () => {

@@ -3,6 +3,7 @@ import { Player } from './Player';
 import { Stats } from './Stats';
 import { Task } from './Task';
 import { TaskLog } from './TaskLog';
+import { Penalty } from './Penalty';
 
 // Initialize models
 const models = {
@@ -10,6 +11,7 @@ const models = {
   Stats,
   Task,
   TaskLog,
+  Penalty,
   sequelize,
 };
 

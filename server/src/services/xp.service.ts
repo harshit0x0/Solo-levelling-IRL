@@ -62,6 +62,11 @@ export function calculateLevel(totalXp: number): number {
  * @returns Current rank
  */
 export function calculateRank(totalXp: number): Rank {
+  // Handle negative XP (due to penalties)
+  if (totalXp < 0) {
+    return 'E';
+  }
+
   for (const [rank, threshold] of Object.entries(RANK_XP_THRESHOLDS) as [Rank, { min: number; max?: number }][] ) {
     if (totalXp >= threshold.min && (threshold.max === undefined || totalXp <= threshold.max)) {
       return rank;
@@ -99,9 +104,7 @@ export async function recalculateLevelAndRank(player: Player): Promise<Player> {
  * @returns Updated Player instance
  */
 export async function addXp(playerId: number, xpAmount: number): Promise<Player> {
-  if (xpAmount < 0) {
-    throw new Error('XP amount must be positive');
-  }
+  // Allow negative XP for penalties (XP loss)
 
   if (xpAmount === 0) {
     // No change needed
