@@ -308,12 +308,34 @@ export async function checkAndMarkMissedTasks(playerId: number): Promise<TaskLog
     ],
   });
 
-  // Mark as missed
-  const missedTasks: TaskLog[] = [];
-  for (const taskLog of missedTaskLogs) {
-    await taskLog.update({ status: 'missed' });
-    missedTasks.push(taskLog);
+  if (missedTaskLogs.length === 0) {
+    return [];
   }
+
+  const taskLogIds = missedTaskLogs.map((taskLog) => taskLog.id);
+
+  // Bulk mark as missed to avoid N+1 updates
+  await TaskLogModel.update(
+    { status: 'missed' },
+    {
+      where: {
+        id: taskLogIds,
+      },
+    }
+  );
+
+  // Reload the updated task logs to return fresh instances
+  const missedTasks = await TaskLogModel.findAll({
+    where: {
+      id: taskLogIds,
+    },
+    include: [
+      {
+        model: TaskModel,
+        as: 'task',
+      },
+    ],
+  });
 
   return missedTasks;
 }
