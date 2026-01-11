@@ -16,8 +16,17 @@ afterAll(async () => {
 // Clean up test data after each test
 afterEach(async () => {
   // Clean up in reverse order of dependencies
-  await models.TaskLog.destroy({ where: {}, force: true });
-  await models.Task.destroy({ where: {}, force: true });
-  await models.Stats.destroy({ where: {}, force: true });
-  await models.Player.destroy({ where: {}, force: true });
+  // Use truncate to reset auto-increment counters and avoid foreign key issues
+  try {
+    await models.TaskLog.truncate({ cascade: true });
+    await models.Task.truncate({ cascade: true });
+    await models.Stats.truncate({ cascade: true });
+    await models.Player.truncate({ cascade: true });
+  } catch (error) {
+    // If truncate fails, fall back to destroy
+    await models.TaskLog.destroy({ where: {}, force: true });
+    await models.Task.destroy({ where: {}, force: true });
+    await models.Stats.destroy({ where: {}, force: true });
+    await models.Player.destroy({ where: {}, force: true });
+  }
 });
