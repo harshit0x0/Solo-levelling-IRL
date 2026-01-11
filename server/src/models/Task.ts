@@ -1,7 +1,7 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/database';
 
-export type TaskType = 'daily' | 'dungeon' | 'boss';
+export type TaskType = 'daily' | 'weekly' | 'dungeon' | 'boss';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'extreme';
 export type StatType = 'physical' | 'intelligence' | 'discipline' | 'charisma' | 'confidence' | 'creativity';
 
@@ -39,7 +39,7 @@ Task.init(
       primaryKey: true,
     },
     type: {
-      type: DataTypes.ENUM('daily', 'dungeon', 'boss'),
+      type: DataTypes.ENUM('daily', 'weekly', 'dungeon', 'boss'),
       allowNull: false,
     },
     difficulty: {
