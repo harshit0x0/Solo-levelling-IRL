@@ -186,7 +186,19 @@ export async function submitTask(
     throw new Error('Task deadline has passed');
   }
 
-  // Create task log with pending status (will be resolved by AI later)
+  // Ensure there isn't already a pending log for this task/player
+  const existingTaskLog = await TaskLogModel.findOne({
+    where: {
+      taskId,
+      playerId,
+      status: 'pending',
+    },
+  });
+
+  if (existingTaskLog) {
+    return existingTaskLog;
+  }
+
   const taskLog = await TaskLogModel.create({
     taskId,
     playerId,
