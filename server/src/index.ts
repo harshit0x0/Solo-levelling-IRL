@@ -4,8 +4,10 @@ import dotenv from 'dotenv';
 import sequelize from './config/database';
 import { startDailyDecayJob } from './jobs/dailyDecay.job';
 import { getPlayerStatus } from './services/player.service';
-import { getActiveTasks, submitTask, judgeAndResolveTask, getTaskHistory } from './services/task.service';
+import { getActiveTasks, submitTask, judgeAndResolveTask, getTaskHistory, getTaskNarrative, getPlayerNarratives, getPlayerTaskStats } from './services/task.service';
 import { judgeTask } from './ai/judge';
+import { generateQuestSuggestion } from './ai/quest-generator';
+// import bodyParser from 'body-parser';
 
 dotenv.config();
 
@@ -130,7 +132,7 @@ app.post('/api/tasks/:id/submit', catchAsync(async (req, res) => {
 
 app.get('/api/tasks/history', catchAsync(async (req, res) => {
   const playerId = parseInt(req.query.playerId as string, 10);
-  
+
   if (!playerId || isNaN(playerId)) {
     throw new Error('playerId query parameter is required and must be a number');
   }
@@ -139,8 +141,49 @@ app.get('/api/tasks/history', catchAsync(async (req, res) => {
   responseHandler(res, 200, { taskLogs });
 }));
 
+// Narrative Routes
+app.get('/api/tasks/:taskLogId/narrative', catchAsync(async (req, res) => {
+  const taskLogId = parseInt(req.params.taskLogId, 10);
+
+  if (!taskLogId || isNaN(taskLogId)) {
+    throw new Error('taskLogId parameter is required and must be a number');
+  }
+
+  const narrative = await getTaskNarrative(taskLogId);
+
+  if (!narrative) {
+    throw new Error('Narrative not found');
+  }
+
+  responseHandler(res, 200, narrative);
+}));
+
+app.get('/api/player/narratives', catchAsync(async (req, res) => {
+  const playerId = parseInt(req.query.playerId as string, 10);
+
+  if (!playerId || isNaN(playerId)) {
+    throw new Error('playerId query parameter is required and must be a number');
+  }
+
+  const narratives = await getPlayerNarratives(playerId);
+  responseHandler(res, 200, { narratives });
+}));
+
+// Analytics Routes
+app.get('/api/player/task-stats', catchAsync(async (req, res) => {
+  const playerId = parseInt(req.query.playerId as string, 10);
+
+  if (!playerId || isNaN(playerId)) {
+    throw new Error('playerId query parameter is required and must be a number');
+  }
+
+  const taskStats = await getPlayerTaskStats(playerId);
+  responseHandler(res, 200, taskStats);
+}));
+
 // AI Routes (for testing)
 app.post('/api/ai/judge', catchAsync(async (req, res) => {
+  console.log("Route hit");
   const { task, playerStats, evidence } = req.body;
 
   if (!task || !playerStats || !evidence) {
@@ -154,6 +197,24 @@ app.post('/api/ai/judge', catchAsync(async (req, res) => {
   });
 
   responseHandler(res, 200, judgeResponse);
+}));
+
+app.post('/api/ai/quest-suggestion', catchAsync(async (req, res) => {
+  const { playerStats, recentFailures, rank, weakestStat, desiredDifficulty } = req.body;
+
+  if (!playerStats || !rank || !weakestStat || !desiredDifficulty) {
+    throw new Error('playerStats, rank, weakestStat, and desiredDifficulty are required');
+  }
+
+  const questSuggestion = await generateQuestSuggestion({
+    playerStats,
+    recentFailures: recentFailures || [],
+    rank,
+    weakestStat,
+    desiredDifficulty,
+  });
+
+  responseHandler(res, 200, questSuggestion);
 }));
 
 // Test database connection on startup

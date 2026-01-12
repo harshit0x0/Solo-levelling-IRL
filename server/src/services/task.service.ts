@@ -1,13 +1,16 @@
 import models from '../models';
-import { Task, Difficulty, StatType } from '../models/Task';
+import { Task, Difficulty, StatType, TaskType } from '../models/Task';
 import { TaskLog, TaskStatus } from '../models/TaskLog';
 import { Op } from 'sequelize';
 import { addXp } from './xp.service';
 import { applyStatChange } from './stat.service';
 import { judgeTask } from '../ai/judge';
 import { JudgeResponse } from '../ai/validation';
+import { generateQuestSuggestion, QuestGeneratorParams } from '../ai/quest-generator';
+import { generateNarrative } from '../ai/narrator';
+import { Rank } from '../models/Player';
 
-const { Task: TaskModel, TaskLog: TaskLogModel } = models;
+const { Task: TaskModel, TaskLog: TaskLogModel, Narrative: NarrativeModel } = models;
 
 /**
  * AI result interface for task resolution
@@ -35,6 +38,10 @@ const TASK_TEMPLATES = {
     hard: {
       xpRange: [36, 40] as [number, number],
       statBonus: 1.5,
+    },
+    extreme: {
+      xpRange: [50, 60] as [number, number],
+      statBonus: 2,
     },
   },
 };
@@ -132,33 +139,158 @@ function calculateXpReward(difficulty: Difficulty, baseXp: number): number {
 }
 
 /**
- * Generates a daily task for a player, biased toward their weakest stat
+ * Gets recent task history for a player (last 21 days)
+ */
+async function getRecentTaskHistory(playerId: number, days: number = 21): Promise<TaskLog[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+
+  const taskLogs = await TaskLogModel.findAll({
+    where: {
+      playerId,
+      createdAt: {
+        [Op.gte]: cutoffDate,
+      },
+    },
+    include: [
+      {
+        model: TaskModel,
+        as: 'task',
+        required: true,
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  return taskLogs;
+}
+
+/**
+ * Calculates difficulty scaling based on recent failures and rank
+ */
+function calculateDifficultyScaling(recentFailures: number, rank: Rank): Difficulty {
+  // Base difficulty starts at easy
+  let difficulty: Difficulty = 'easy';
+
+  // Adjust based on recent failures
+  // More failures = easier tasks to build confidence
+  if (recentFailures === 0) {
+    // No failures, can increase difficulty
+    if (rank === 'E' || rank === 'D') {
+      difficulty = 'easy';
+    } else if (rank === 'C' || rank === 'B') {
+      difficulty = 'medium';
+    } else if (rank === 'A' || rank === 'S') {
+      difficulty = 'hard';
+    } else {
+      difficulty = 'extreme';
+    }
+  } else if (recentFailures <= 2) {
+    // Few failures, maintain current level
+    if (rank === 'E' || rank === 'D') {
+      difficulty = 'easy';
+    } else {
+      difficulty = 'medium';
+    }
+  } else if (recentFailures <= 5) {
+    // Moderate failures, reduce difficulty
+    difficulty = 'easy';
+  } else {
+    // Many failures, keep it easy
+    difficulty = 'easy';
+  }
+
+  return difficulty;
+}
+
+/**
+ * Counts recent failures from task history
+ */
+function countRecentFailures(taskLogs: TaskLog[]): number {
+  return taskLogs.filter((log) => log.status === 'failed' || log.status === 'missed').length;
+}
+
+/**
+ * Generates a daily task for a player using deterministic-first approach with AI enhancement
+ * Flow: Identify weakest stat → Check recent history → Calculate difficulty → Request AI suggestion → Persist task
  *
  * @param playerId - Player ID
  * @returns Created Task instance
  */
 export async function generateDailyTask(playerId: number): Promise<Task> {
+  // Step 1: Identify weakest stat (mandatory targeting)
   const weakestStat = await getWeakestStat(playerId);
 
-  // For now, always generate easy difficulty daily tasks
-  const difficulty: Difficulty = 'easy';
-  const template = TASK_TEMPLATES.daily[difficulty];
+  // Step 2: Get player info
+  const player = await models.Player.findByPk(playerId);
+  if (!player) {
+    throw new Error(`Player not found: ${playerId}`);
+  }
 
-  // Random XP within range
+  const playerStats = await models.Stats.findOne({
+    where: { playerId },
+  });
+  if (!playerStats) {
+    throw new Error(`Stats not found for player ${playerId}`);
+  }
+
+  // Step 3: Check recent task history (last 21 days)
+  const recentTaskLogs = await getRecentTaskHistory(playerId, 21);
+  const recentFailures = countRecentFailures(recentTaskLogs);
+
+  // Step 4: Calculate difficulty scaling based on failures and rank
+  const desiredDifficulty = calculateDifficultyScaling(recentFailures, player.rank);
+
+  // Step 5: Request AI suggestion (deterministic-first: we specify stat and difficulty)
+  let questSuggestion;
+  try {
+    const questParams: QuestGeneratorParams = {
+      playerStats,
+      recentFailures,
+      rank: player.rank,
+      weakestStat,
+      desiredDifficulty,
+    };
+    questSuggestion = await generateQuestSuggestion(questParams);
+  } catch (error) {
+    console.error('Quest Generator AI failed, using fallback:', error);
+    // Fallback: use deterministic description
+    questSuggestion = {
+      type: 'daily' as TaskType,
+      description: getRandomDescription(weakestStat),
+      difficulty: desiredDifficulty,
+      targetStat: weakestStat,
+    };
+  }
+
+  // Ensure weakness targeting is mandatory (override AI if needed)
+  const finalTargetStat = questSuggestion.targetStat === weakestStat ? weakestStat : weakestStat;
+  const finalDifficulty = questSuggestion.difficulty;
+
+  // Step 6: Calculate XP reward
+  const template = TASK_TEMPLATES.daily[finalDifficulty] || TASK_TEMPLATES.daily.easy;
   const baseXp = Math.floor(Math.random() * (template.xpRange[1] - template.xpRange[0] + 1)) + template.xpRange[0];
-  const xpReward = calculateXpReward(difficulty, baseXp);
+  const xpReward = calculateXpReward(finalDifficulty, baseXp);
 
-  // Set deadline to end of today
+  // Step 7: Set deadline to end of today
   const deadline = new Date();
   deadline.setHours(23, 59, 59, 999);
 
+  // Step 8: Persist task
   const task = await TaskModel.create({
-    type: 'daily',
-    difficulty,
-    description: getRandomDescription(weakestStat),
-    targetStat: weakestStat,
+    type: questSuggestion.type,
+    difficulty: finalDifficulty,
+    description: questSuggestion.description,
+    targetStat: finalTargetStat,
     xpReward,
     deadline,
+  });
+
+  // Create pending task log
+  await TaskLogModel.create({
+    taskId: task.id,
+    playerId,
+    status: 'pending',
   });
 
   return task;
@@ -198,6 +330,9 @@ export async function submitTask(
   });
 
   if (existingTaskLog) {
+    if (!existingTaskLog.evidence) {
+      await existingTaskLog.update({ evidence });
+    }
     return existingTaskLog;
   }
 
@@ -281,8 +416,22 @@ export async function judgeAndResolveTask(taskLogId: number): Promise<TaskLog> {
   // Convert JudgeResponse to TaskResolution
   const resolution = convertJudgeResponseToResolution(judgeResponse);
 
+  // Generate narrative using Narrator AI (no stat/XP impact)
+  let narrativeText: string | null = null;
+  try {
+    narrativeText = await generateNarrative({
+      task,
+      playerStats,
+      verdict: judgeResponse.verdict,
+      context: `Task ${judgeResponse.verdict === 'success' ? 'completed' : 'failed'}.`,
+    });
+  } catch (error) {
+    console.error('Narrator AI failed, skipping narrative:', error);
+    // Continue without narrative - it's optional
+  }
+
   // Resolve task (applies XP and stat changes via services, not directly)
-  return await resolveTask(taskLog, resolution);
+  return await resolveTask(taskLog, resolution, narrativeText);
 }
 
 /**
@@ -290,11 +439,13 @@ export async function judgeAndResolveTask(taskLogId: number): Promise<TaskLog> {
  *
  * @param taskLog - TaskLog instance
  * @param resolution - AI resolution result
+ * @param narrative - Optional narrative text from Narrator AI
  * @returns Updated TaskLog instance
  */
 export async function resolveTask(
   taskLog: TaskLog,
-  resolution: TaskResolution
+  resolution: TaskResolution,
+  narrative?: string | null
 ): Promise<TaskLog> {
   const { success, xpAwarded, statChanges, feedback } = resolution;
 
@@ -304,6 +455,14 @@ export async function resolveTask(
     status: newStatus,
     aiVerdict: feedback || (success ? 'Task completed successfully' : 'Task requirements not met'),
   });
+
+  // Store narrative if provided (no stat/XP impact)
+  if (narrative) {
+    await NarrativeModel.create({
+      taskLogId: taskLog.id,
+      narrative,
+    });
+  }
 
   if (success) {
     // Apply rewards via XP service (not directly mutating DB)
@@ -320,6 +479,10 @@ export async function resolveTask(
       {
         model: TaskModel,
         as: 'task',
+      },
+      {
+        model: NarrativeModel,
+        as: 'narrative',
       },
     ],
   });
@@ -439,4 +602,106 @@ export async function getTaskHistory(playerId: number): Promise<TaskLog[]> {
   });
 
   return taskLogs;
+}
+
+/**
+ * Gets narrative for a specific task log
+ *
+ * @param taskLogId - TaskLog ID
+ * @returns Narrative instance or null if not found
+ */
+export async function getTaskNarrative(taskLogId: number) {
+  const narrative = await NarrativeModel.findOne({
+    where: {
+      taskLogId,
+    },
+  });
+
+  return narrative;
+}
+
+/**
+ * Gets all narratives for a player's completed tasks
+ *
+ * @param playerId - Player ID
+ * @returns Array of narratives with associated task logs
+ */
+export async function getPlayerNarratives(playerId: number) {
+  const narratives = await NarrativeModel.findAll({
+    include: [
+      {
+        model: TaskLogModel,
+        as: 'taskLog',
+        where: {
+          playerId,
+        },
+        include: [
+          {
+            model: TaskModel,
+            as: 'task',
+            required: true,
+          },
+        ],
+        required: true,
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  return narratives;
+}
+
+/**
+ * Gets task statistics for a player
+ *
+ * @param playerId - Player ID
+ * @returns Task statistics including success rate, recent failures, etc.
+ */
+export async function getPlayerTaskStats(playerId: number) {
+  const now = new Date();
+  const twentyOneDaysAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+
+  // Get all task logs for the player
+  const allTaskLogs = await TaskLogModel.findAll({
+    where: {
+      playerId,
+    },
+  });
+
+  // Get recent task logs (last 21 days)
+  const recentTaskLogs = await TaskLogModel.findAll({
+    where: {
+      playerId,
+      createdAt: {
+        [Op.gte]: twentyOneDaysAgo,
+      },
+    },
+  });
+
+  const totalTasks = allTaskLogs.length;
+  const completedTasks = allTaskLogs.filter(log => log.status === 'completed').length;
+  const failedTasks = allTaskLogs.filter(log => log.status === 'failed').length;
+  const missedTasks = allTaskLogs.filter(log => log.status === 'missed').length;
+
+  const recentTotal = recentTaskLogs.length;
+  const recentCompleted = recentTaskLogs.filter(log => log.status === 'completed').length;
+  const recentFailed = recentTaskLogs.filter(log => log.status === 'failed').length;
+  const recentMissed = recentTaskLogs.filter(log => log.status === 'missed').length;
+
+  return {
+    overall: {
+      total: totalTasks,
+      completed: completedTasks,
+      failed: failedTasks,
+      missed: missedTasks,
+      successRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+    },
+    recent: {
+      total: recentTotal,
+      completed: recentCompleted,
+      failed: recentFailed,
+      missed: recentMissed,
+      successRate: recentTotal > 0 ? (recentCompleted / recentTotal) * 100 : 0,
+    },
+  };
 }
