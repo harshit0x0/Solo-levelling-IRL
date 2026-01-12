@@ -241,4 +241,20 @@ async function startServer() {
   }
 }
 
-startServer();
+// Register error handling middleware after all routes so async errors are correctly handled
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Error:', err);
+  
+  // Handle validation errors (from service layer)
+  if (err.message.includes('not found') || err.message.includes('Not found')) {
+    return responseHandler(res, 404, err.message);
+  }
+  
+  // Handle bad request errors
+  if (err.message.includes('required') || err.message.includes('must be') || err.message.includes('invalid')) {
+    return responseHandler(res, 400, err.message);
+  }
+  
+  // Default to 500 for unexpected errors
+  return responseHandler(res, 500, err.message || 'Internal server error');
+});
