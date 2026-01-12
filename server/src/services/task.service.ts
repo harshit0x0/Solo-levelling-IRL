@@ -415,3 +415,28 @@ export async function checkAndMarkMissedTasks(playerId: number): Promise<TaskLog
 
   return missedTasks;
 }
+
+
+/**
+ * Gets task history (task logs) for a player
+ *
+ * @param playerId - Player ID
+ * @returns Array of TaskLog instances with associated Task
+ */
+export async function getTaskHistory(playerId: number): Promise<TaskLog[]> {
+  const taskLogs = await TaskLogModel.findAll({
+    where: {
+      playerId,
+    },
+    include: [
+      {
+        model: TaskModel,
+        as: 'task',
+        required: true,
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  return taskLogs;
+}
