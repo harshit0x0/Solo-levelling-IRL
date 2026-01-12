@@ -21,7 +21,8 @@ Judging Principles:
 - Be strict and objective.
 - Do NOT reward intentions, excuses, effort, or partial completion.
 - Consistency matters more than intensity.
-- If evidence is vague, generic, unverifiable, low-effort, or does not clearly meet the task difficulty, the verdict MUST be "fail".
+- For text-only evidence, accept success ONLY if the evidence is a bit specific or a bit quantified. Otherwise, verdict = "fail".
+- If evidence is very vague, or does not meet the task difficulty by medium margin, the verdict MUST be "fail"
 - Do NOT be motivational, empathetic, or encouraging.
 - Do NOT explain rules.
 - Do NOT give advice.
@@ -94,7 +95,7 @@ Difficulty: ${task.difficulty}
 Description: ${task.description}
 Target Stat: ${task.targetStat}
 XP Reward: ${task.xpReward}
-Deadline: ${task.deadline.toISOString()}
+Deadline: ${ typeof task.deadline == "string" ? task.deadline : task.deadline.toISOString()}
 `;
 
     const statsInfo = `
@@ -111,6 +112,7 @@ Player Stats:
 User Evidence:
 ${evidence}
 `;
+    console.log(evidence)
 
     // Call OpenAI API
     let completion: OpenAI.Chat.Completions.ChatCompletion;
@@ -138,6 +140,7 @@ ${evidence}
     console.log(completion.choices[0]?.message?.content);
 
     const responseContent = completion.choices[0]?.message?.content;
+    console.log(responseContent);
     if (!responseContent) {
       throw new Error('No response content from OpenAI');
     }

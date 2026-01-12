@@ -4,6 +4,7 @@ import { Stats } from './Stats';
 import { Task } from './Task';
 import { TaskLog } from './TaskLog';
 import { Penalty } from './Penalty';
+import { Narrative } from './Narrative';
 
 // Initialize models
 const models = {
@@ -12,6 +13,7 @@ const models = {
   Task,
   TaskLog,
   Penalty,
+  Narrative,
   sequelize,
 };
 
@@ -24,5 +26,8 @@ TaskLog.belongsTo(Player, { foreignKey: 'playerId', as: 'player' });
 
 Task.hasMany(TaskLog, { foreignKey: 'taskId', as: 'taskLogs' });
 TaskLog.belongsTo(Task, { foreignKey: 'taskId', as: 'task' });
+
+TaskLog.hasOne(Narrative, { foreignKey: 'taskLogId', as: 'narrative' });
+Narrative.belongsTo(TaskLog, { foreignKey: 'taskLogId', as: 'taskLog' });
 
 export default models;
