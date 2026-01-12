@@ -20,7 +20,9 @@ module.exports = {
         const [players] = await queryInterface.sequelize.query(
           "SELECT id FROM players WHERE rank = 'E' AND level = 1 ORDER BY id DESC LIMIT 1"
         );
-        const playerId = players[0].id;
+        if (!players || players.length === 0) {
+          throw new Error("Failed to seed test player: no matching player found");
+        }
     
         // Create stats for the player
         await queryInterface.bulkInsert('stats', [
