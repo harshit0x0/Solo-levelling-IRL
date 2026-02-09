@@ -258,3 +258,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   // Default to 500 for unexpected errors
   return responseHandler(res, 500, err.message || 'Internal server error');
 });
+
+startServer();

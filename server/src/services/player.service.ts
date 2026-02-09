@@ -21,6 +21,15 @@ export async function getPlayerStatus(playerId: number) {
     throw new Error(`Player not found: ${playerId}`);
   }
 
+  const playerStats = {
+      "physical": player.stats?.physical,
+      "intelligence": player.stats?.intelligence,
+      "discipline": player.stats?.discipline,
+      "charisma": player.stats?.charisma,
+      "confidence": player.stats?.confidence,
+      "creativity": player.stats?.creativity,
+  }
+
   return {
     player: {
       id: player.id,
@@ -28,6 +37,6 @@ export async function getPlayerStatus(playerId: number) {
       level: player.level,
       totalXp: player.totalXp,
     },
-    stats: player.stats || null,
+    stats: playerStats || null,
   };
 }
