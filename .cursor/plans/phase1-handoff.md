@@ -63,6 +63,17 @@ All models use TypeScript with `declare` keyword to avoid shadowing Sequelize's 
 - Associations: `belongsTo(Player)`, `belongsTo(Task)`
 - Foreign key constraints on `taskId` and `playerId`
 
+**Penalty** (`server/src/models/Penalty.ts`)
+PenaltyAttributes {
+  id: number;
+  playerId: number;
+  reason: PenaltyReason;
+  severity: number;
+  expiresAt: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 **Model Index** (`server/src/models/index.ts`)
 - Exports all models as a single object: `{ Player, Stats, Task, TaskLog, sequelize }`
 - Sets up all associations (1:1 Player↔Stats, 1:Many Player↔TaskLog, 1:Many Task↔TaskLog)
